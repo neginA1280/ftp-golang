@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"strings"
@@ -10,11 +11,53 @@ import (
 )
 
 ////////////////////////////////////////////////////////////////
+
 var isSendingFile bool = false
 var fileName string
 
+////////////////////////////////////////////////////////////////
+
+func ls(conn net.Conn) {
+
+	buf := make([]byte, 1024)
+	n, err := conn.Read(buf)
+	errorCheck(err, "Couldn't read the list from server")
+
+	fmt.Println(string(buf[:n]))
+}
+
+////////////////////////////////////////////////////////////////
+
+func put(conn net.Conn, fileName string) {
+
+	// receiving client commands
+	file, err := os.Open("client/" + fileName)
+	errorCheck(err, "Couldn't open file "+fileName)
+	defer file.Close()
+
+	buf := make([]byte, 1024)
+	for {
+
+		//Read chunk bytes from file
+		n, err := file.Read(buf)
+		if err != nil {
+			if err == io.EOF {
+				fmt.Println("sending file completed.")
+			} else {
+				errorCheck(err, "Couldn't send file from client to server")
+			}
+			return
+		}
+
+		//sending chunk bytes to client
+		_, err = conn.Write(buf[:n])
+	}
+
+}
+
+////////////////////////////////////////////////////////////////
+
 func get(conn net.Conn, fileName string) {
-	// fileName := "/media/negin/EXTERNAL/network/project/socket/ftp-golang/client/server"
 
 	//Create a new file by file name
 	file, err := os.Create("client/" + fileName)
@@ -71,9 +114,9 @@ func handleCommand(conn net.Conn) {
 			isSendingFile = true
 			get(conn, fileName)
 		} else if command == "put" {
-			fmt.Println("put command")
+			put(conn, fileName)
 		} else if command == "ls" {
-			fmt.Println("ls command")
+			ls(conn)
 		} else if command == "quit" {
 			conn.Close()
 			break
